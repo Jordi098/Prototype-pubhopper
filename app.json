@@ -1,0 +1,24 @@
+{
+  "expo": {
+    "name": "Pub Hopper Blaak",
+    "slug": "pub-hopper-blaak",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "com.jordi.pubhopperblaak"
+    },
+    "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Choose a local photo to complete each pub challenge."
+        }
+      ]
+    ]
+  }
+}

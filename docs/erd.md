@@ -1,6 +1,6 @@
 # ERD - Pub Hopper Blaak
 
-Dit ERD beschrijft een toekomstige database-structuur voor de Pub Hopper Blaak app. De huidige MVP gebruikt nog mock data en AsyncStorage, maar deze structuur is geschikt voor een backend met accounts, matchmaking, routes, timers en foto-opslag.
+Dit ERD beschrijft een toekomstige database-structuur voor de Pub Hopper Blaak app. De huidige MVP gebruikt nog mock data en AsyncStorage, maar deze structuur is geschikt voor een backend met accounts, matchmaking, themaroutes, partnerships, timers, foto-opslag en een collage/recap na afloop.
 
 ```mermaid
 erDiagram
@@ -53,36 +53,68 @@ erDiagram
     string id PK
     string match_id FK
     string route_id FK
+    string theme_id FK
     string selected_time_slot
     string status
-    int current_pub_index
+    int current_stop_index
     datetime started_at
     datetime completed_at
   }
 
-  PUB_ROUTE {
+  ROUTE_THEME {
     string id PK
     string name
-    string area
-    string city
+    string description
+    string mood
     bool active
   }
 
-  PUB {
+  ROUTE {
+    string id PK
+    string theme_id FK
+    string name
+    string area
+    string city
+    string route_type
+    bool active
+  }
+
+  VENUE {
     string id PK
     string name
+    string venue_type
     string address
     string description
     decimal latitude
     decimal longitude
-    string suggested_drink
+    string suggested_order
     string vibe
+  }
+
+  PARTNER {
+    string id PK
+    string organization_name
+    string contact_email
+    string partnership_type
+    string status
+    datetime created_at
+  }
+
+  VENUE_PARTNERSHIP {
+    string id PK
+    string venue_id FK
+    string partner_id FK
+    string deal_title
+    string deal_description
+    datetime starts_at
+    datetime ends_at
+    bool active
   }
 
   ROUTE_STOP {
     string id PK
     string route_id FK
-    string pub_id FK
+    string venue_id FK
     int route_order
     int planned_duration_minutes
     string walk_label
@@ -101,7 +133,8 @@ erDiagram
 
   CONVERSATION_STARTER {
     string id PK
-    string pub_id FK
+    string venue_id FK
+    string theme_id FK
     string category
     string prompt
     int trigger_minute
@@ -117,6 +150,24 @@ erDiagram
     datetime created_at
   }
 
+  COLLAGE {
+    string id PK
+    string session_id FK
+    string title
+    string collage_url
+    string layout_type
+    string share_token
+    datetime created_at
+  }
+
+  COLLAGE_PHOTO {
+    string id PK
+    string collage_id FK
+    string photo_id FK
+    int display_order
+    string caption
+  }
+
   USER ||--o{ GROUP_MEMBER : joins
   PLAYER_GROUP ||--o{ GROUP_MEMBER : contains
   PLAYER_GROUP ||--o{ GROUP_INTEREST : selects
@@ -124,14 +175,22 @@ erDiagram
   PLAYER_GROUP ||--o{ MATCH : group_a
   PLAYER_GROUP ||--o{ MATCH : group_b
   MATCH ||--o| GAME_SESSION : creates
-  PUB_ROUTE ||--o{ ROUTE_STOP : contains
-  PUB ||--o{ ROUTE_STOP : appears_on
-  PUB_ROUTE ||--o{ GAME_SESSION : used_by
+  ROUTE_THEME ||--o{ ROUTE : defines
+  ROUTE_THEME ||--o{ GAME_SESSION : selected_for
+  ROUTE ||--o{ ROUTE_STOP : contains
+  VENUE ||--o{ ROUTE_STOP : appears_on
+  PARTNER ||--o{ VENUE_PARTNERSHIP : funds
+  VENUE ||--o{ VENUE_PARTNERSHIP : offers
+  ROUTE ||--o{ GAME_SESSION : used_by
   GAME_SESSION ||--o{ SESSION_STOP : tracks
   ROUTE_STOP ||--o{ SESSION_STOP : instantiates
-  PUB ||--o{ CONVERSATION_STARTER : has
+  VENUE ||--o{ CONVERSATION_STARTER : has
+  ROUTE_THEME ||--o{ CONVERSATION_STARTER : influences
   SESSION_STOP ||--o{ PHOTO : requires
   PLAYER_GROUP ||--o{ PHOTO : uploads
+  GAME_SESSION ||--o| COLLAGE : generates
+  COLLAGE ||--o{ COLLAGE_PHOTO : contains
+  PHOTO ||--o{ COLLAGE_PHOTO : used_in
 ```
 
 ## Belangrijkste Entiteiten
@@ -146,48 +205,91 @@ De groep waarmee studenten meedoen. Een groep heeft 4 tot 8 personen, een gekoze
 Koppelt gebruikers aan een groep. Hierdoor kan een groep meerdere studenten bevatten.
 
 ### Interest en GroupInterest
-Interesses worden los opgeslagen zodat matchmaking later flexibel kan blijven. Een groep kan meerdere interesses kiezen.
+Interesses worden los opgeslagen zodat matchmaking flexibel blijft. Een groep kan meerdere interesses kiezen.
 
 ### Match
 Legt vast welke twee groepen aan elkaar gekoppeld zijn, inclusief matchscore en status.
 
 ### GameSession
-De daadwerkelijke pub hopper game. Deze start na een match en houdt bij welke route wordt gespeeld, wat de status is en bij welke pub de spelers zijn.
+De daadwerkelijke pub hopper game. Deze start na een match en houdt bij welke route en welk thema wordt gespeeld, wat de status is en bij welke stop de spelers zijn.
 
-### PubRoute, Pub en RouteStop
-De route bestaat uit 5 pubs. `RouteStop` bepaalt de volgorde, looptijd en geplande duur per pub. Hierdoor kan dezelfde pub later in meerdere routes voorkomen.
+### RouteTheme
+Een thema dat studenten kunnen kiezen voordat de route start. Hierdoor hoeft de app niet alleen pubroutes aan te bieden.
+
+Voorbeelden:
+
+- Pub night
+- Coffee and conversation
+- Cafe route
+- Food and drinks
+- Culture walk
+- Chill social route
+- Alcohol-free route
+
+Het gekozen thema kan bepalen welke venues worden getoond, welke conversation starters verschijnen en welke sfeer de route heeft.
+
+### Route, Venue en RouteStop
+De route bestaat uit 5 stops. In plaats van alleen `PUB` gebruikt het model nu `VENUE`, zodat een route ook cafes, koffiezaken, lunchplekken, culturele plekken of alcoholvrije locaties kan bevatten.
+
+`RouteStop` bepaalt de volgorde, looptijd en geplande duur per venue. Hierdoor kan dezelfde venue later in meerdere routes of thema's voorkomen.
+
+### Partner en VenuePartnership
+Deze tabellen ondersteunen partnerships met pubs, cafes of andere locaties. Een partner kan bijvoorbeeld betalen voor zichtbaarheid, een student deal aanbieden of een gesponsorde challenge toevoegen.
+
+Voorbeelden:
+
+- student discount;
+- first drink deal;
+- mocktail deal;
+- coffee deal;
+- sponsored photo challenge;
+- featured venue placement;
+- intro-week partnership.
 
 ### SessionStop
-De voortgang van één specifieke sessie bij één pub. Hier worden timerstatus, aankomsttijd en voltooiing bijgehouden.
+De voortgang van een specifieke sessie bij een route stop. Hier worden timerstatus, aankomsttijd en voltooiing bijgehouden.
 
 ### ConversationStarter
-Vragen of opdrachten per pub. `trigger_minute` bepaalt wanneer de prompt verschijnt, bijvoorbeeld minuut 0, 5, 10 of 15.
+Vragen of opdrachten per venue en eventueel per thema. `trigger_minute` bepaalt wanneer de prompt verschijnt, bijvoorbeeld minuut 0, 5, 10 of 15.
+
+Daardoor kan dezelfde locatie andere prompts krijgen bij verschillende thema's. Een cafe-route kan bijvoorbeeld rustigere vragen hebben dan een nightlife-route.
 
 ### Photo
-Foto die na een pub wordt toegevoegd als bewijs of herinnering. In de MVP is dit een lokale URI; in een backend wordt dit waarschijnlijk een `photo_url`.
+Foto die na een stop wordt toegevoegd als bewijs of herinnering. In de MVP is dit een lokale URI; in een backend wordt dit waarschijnlijk een `photo_url`.
+
+### Collage en CollagePhoto
+Na de laatste stop kan de app automatisch een collage of recap genereren. `COLLAGE` hoort bij een game session. `COLLAGE_PHOTO` bepaalt welke foto's in de collage staan, in welke volgorde, en met welk onderschrift.
+
+Dit ondersteunt de feature waarbij studenten na afloop hun route kunnen terugzien als herinnering.
 
 ## Relaties Kort Uitgelegd
 
-- Eén groep heeft meerdere groepsleden.
-- Eén groep kiest meerdere interesses.
-- Eén match koppelt twee groepen.
-- Eén match kan één game session starten.
-- Eén game session gebruikt één route.
-- Eén route bestaat uit meerdere route stops.
-- Eén route stop verwijst naar één pub.
-- Eén game session heeft meerdere session stops.
-- Eén session stop vereist minimaal één foto.
-- Eén pub kan meerdere conversation starters hebben.
+- Een groep heeft meerdere groepsleden.
+- Een groep kiest meerdere interesses.
+- Een match koppelt twee groepen.
+- Een match kan een game session starten.
+- Een game session gebruikt een route en een gekozen thema.
+- Een thema kan meerdere routes beinvloeden.
+- Een route bestaat uit meerdere route stops.
+- Een route stop verwijst naar een venue.
+- Een venue kan een pub, cafe, koffiezaak of andere sociale plek zijn.
+- Een venue kan meerdere partnerships of deals hebben.
+- Een game session heeft meerdere session stops.
+- Een session stop vereist minimaal een foto.
+- Een venue kan meerdere conversation starters hebben.
+- Een game session kan een collage genereren.
+- Een collage bevat meerdere foto's.
 
 ## MVP vs Backend
 
 In de huidige MVP worden deze gegevens nog niet in een database opgeslagen. De app gebruikt:
 
-- mock pubs;
+- mock venues;
+- mock themes;
 - mock groups;
 - lokale session state;
 - AsyncStorage;
-- lokale foto-URI’s.
+- lokale foto-URI's.
 
 Voor een echte backend zouden vooral deze tabellen als eerste nodig zijn:
 
@@ -196,10 +298,21 @@ Voor een echte backend zouden vooral deze tabellen als eerste nodig zijn:
 3. `GROUP_INTEREST`
 4. `MATCH`
 5. `GAME_SESSION`
-6. `PUB_ROUTE`
-7. `PUB`
-8. `ROUTE_STOP`
-9. `SESSION_STOP`
-10. `PHOTO`
+6. `ROUTE_THEME`
+7. `ROUTE`
+8. `VENUE`
+9. `ROUTE_STOP`
+10. `SESSION_STOP`
+11. `PHOTO`
+12. `COLLAGE`
+
+Voor partnerships zijn daarna nodig:
+
+1. `PARTNER`
+2. `VENUE_PARTNERSHIP`
+
+Voor een uitgebreidere collage-feature is daarnaast nodig:
+
+1. `COLLAGE_PHOTO`
 
 `USER` kan later worden toegevoegd als de app login of persoonlijke profielen krijgt.
